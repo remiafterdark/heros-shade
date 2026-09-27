@@ -36,3 +36,8 @@ cmake --build build
 
 The Dusklight source is fetched on the first configure, or put a checkout next to this folder.
 The mod ends up in `build/mods/heros_shade.dusk`.
+
+## License
+
+The code is MIT, see [LICENSE](LICENSE). Twilight Princess and its models belong to Nintendo. None of
+the game's files are in this repository or the mod: it uses the ones in your own copy of the game.
