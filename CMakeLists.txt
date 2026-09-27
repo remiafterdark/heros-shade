@@ -20,6 +20,7 @@ add_mod(heros_shade
              src/wolf.cpp
              src/voice.cpp
     MOD_JSON mod.json
+    RES_DIR  res
 )
 
 if(MSVC)
