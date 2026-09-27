@@ -6,10 +6,6 @@
 #include "mods/svc/hook.hpp"
 #include "mods/svc/ui.h"
 
-#include "d/actor/d_a_alink.h"
-#include "d/d_com_inf_game.h"
-#include "d/d_item_data.h"
-
 #include <cstdint>
 
 DEFINE_MOD();
@@ -53,30 +49,6 @@ Var s_vars[kVarCount] = {
 };
 
 ShadeOptions s_options{};
-
-ConfigVarHandle s_kitVar = 0;
-bool s_kitDone = false;
-bool s_wearDone = false;
-
-void debug_kit() {
-    bool on = false;
-    if (s_kitDone || s_kitVar == 0 || svc_config->get_bool(mod_ctx, s_kitVar, &on) != MOD_OK || !on) return;
-
-    if (!s_wearDone && dComIfGs_getSaveInfo() != nullptr) {
-        dComIfGs_setCollectClothes(KOKIRI_CLOTHES_FLAG);
-        dComIfGs_setSelectEquipClothes(dItemNo_WEAR_KOKIRI_e);
-        if (daAlink_getAlinkActorClass() != nullptr) s_wearDone = true;
-    }
-    if (daAlink_getAlinkActorClass() == nullptr) return;
-    dComIfGs_setCollectSword(COLLECT_ORDON_SWORD);
-    dComIfGs_setCollectSword(COLLECT_MASTER_SWORD);
-    dComIfGs_setCollectShield(COLLECT_ORDON_SHIELD);
-    dComIfGs_setCollectShield(COLLECT_HYLIAN_SHIELD);
-    dComIfGs_setSelectEquipSword(dItemNo_SWORD_e);
-    dComIfGs_setSelectEquipShield(dItemNo_HYLIA_SHIELD_e);
-    s_kitDone = true;
-    mods::log::info("heros_shade: test kit given");
-}
 
 bool get(VarId id) {
     bool value = s_vars[id].fallback;
@@ -171,11 +143,6 @@ MOD_EXPORT ModResult mod_initialize(ModError*) {
         desc.default_bool = v.fallback;
         if (svc_config->register_var(mod_ctx, &desc, &v.handle) != MOD_OK) v.handle = 0;
     }
-    ConfigVarDesc kit = CONFIG_VAR_DESC_INIT;
-    kit.name = "debug_kit";
-    kit.type = CONFIG_VAR_BOOL;
-    kit.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &kit, &s_kitVar) != MOD_OK) s_kitVar = 0;
     read_options();
     shade_init();
     UiModsPanelDesc panel = UI_MODS_PANEL_DESC_INIT;
@@ -186,7 +153,6 @@ MOD_EXPORT ModResult mod_initialize(ModError*) {
 
 MOD_EXPORT ModResult mod_update(ModError*) {
     read_options();
-    debug_kit();
     return MOD_OK;
 }
 
