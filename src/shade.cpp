@@ -519,8 +519,7 @@ bool body_wanted(daAlink_c* alink) {
 
 bool shade_is_him(daAlink_c* alink) {
     const ShadeOptions& o = shade_options();
-    if (alink->checkWolf()) return o.wolf;
-    return o.body && (o.allOutfits || o.outfit[outfit_of()]);
+    return !alink->checkWolf() && o.body && (o.allOutfits || o.outfit[outfit_of()]);
 }
 
 namespace {

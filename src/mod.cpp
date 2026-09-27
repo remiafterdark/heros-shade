@@ -137,7 +137,7 @@ ModResult build_panel(ModContext*, UiElementHandle pane, void*, ModError*) {
     toggle(pane, "Ordon clothes", kVarOrdon, nullptr, outfit_off);
     toggle(pane, "Zora armor", kVarZora, nullptr, outfit_off);
     toggle(pane, "Magic armor", kVarMagic, nullptr, outfit_off);
-    toggle(pane, "Silent", kVarSilent, "No voice while you are him, or his golden wolf.");
+    toggle(pane, "Silent", kVarSilent, "No voice while you are him. The wolf keeps his.");
 
     svc_ui->pane_add_section(mod_ctx, pane, "Wolf");
     toggle(pane, "Golden wolf", kVarWolf, "The wolf is his golden wolf.");

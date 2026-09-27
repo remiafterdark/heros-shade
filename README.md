@@ -17,7 +17,7 @@ In the Mods window, under Hero's Shade. Everything is on by default.
 | --- | --- |
 | Be the Hero's Shade | his body in place of Link's |
 | In every outfit | or only the outfits you pick |
-| Silent | no voice while you are him or his wolf |
+| Silent | no voice while you are him (the wolf keeps his) |
 | Golden wolf | the wolf is his golden wolf |
 | His sword | over the Wooden, Ordon and/or Master Sword |
 | His shield | over the Ordon, Wooden and/or Hylian Shield |
