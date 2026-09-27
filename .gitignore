@@ -1,0 +1,10 @@
+build/
+build_ninja/
+*.dusk
+
+.vs/
+.vscode/
+__pycache__/
+*.pyc
+
+/dusklight/

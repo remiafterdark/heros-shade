@@ -1,0 +1,171 @@
+# builds every platform and packs them into one heros_shade.dusk
+name: build
+
+env:
+  SYMGEN_VERSION: v1.2.4
+
+# tags build a release. the ci branch builds without one, to try every platform first.
+on:
+  push:
+    tags: ["v*"]
+    branches: ["ci"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{matrix.platform}}
+    runs-on: ${{matrix.runner}}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
+          - platform: macos-arm64
+            runner: macos-latest
+          - platform: macos-x86_64
+            runner: macos-latest
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64
+          - platform: ios-arm64
+            runner: macos-latest
+            cmake_args: >-
+              -DCMAKE_SYSTEM_NAME=iOS
+              -DCMAKE_OSX_ARCHITECTURES=arm64
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+          - platform: windows-amd64
+            runner: windows-latest
+            msvc_arch: amd64
+          - platform: windows-arm64
+            runner: windows-latest
+            msvc_arch: amd64_arm64
+          - platform: android-aarch64
+            runner: ubuntu-latest
+            android_ndk: "29.0.14206865"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: dusklight version
+        id: dusklight
+        shell: bash
+        run: echo "version=$(sed -n 's/.*set(DUSKLIGHT_VERSION "\([^"]*\)").*/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: cache dusklight
+        uses: actions/cache@v4
+        with:
+          path: dusklight
+          key: dusklight-${{runner.os}}-${{steps.dusklight.outputs.version}}
+
+      - name: msvc env
+        if: matrix.msvc_arch
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{matrix.msvc_arch}}
+
+      - name: ninja (windows)
+        if: matrix.msvc_arch
+        run: choco install ninja
+
+      - name: ninja (linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: ninja (macos)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: android ndk
+        if: matrix.android_ndk
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ndk;${{matrix.android_ndk}}
+
+      - name: configure
+        shell: bash
+        run: |
+          args=(-G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDUSK_DIR="$PWD/dusklight" ${{matrix.cmake_args}})
+          if [[ -n "${{matrix.android_ndk}}" ]]; then
+            args+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/${{matrix.android_ndk}}/build/cmake/android.toolchain.cmake"
+                   -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28)
+          fi
+          if [[ "${{matrix.msvc_arch}}" != "" ]]; then
+            args+=(-DPUBLIC_BUILD=ON)
+          fi
+          cmake -B build "${args[@]}"
+
+      - name: build
+        shell: bash
+        run: |
+          set -o pipefail
+          # keep going past the first error, and put the errors on the run page itself
+          if ! cmake --build build --parallel -- -k 0 2>&1 | tee build.log; then
+            grep -E "error:|error [A-Z]+[0-9]+:" build.log | sed 's/%/%25/g' | awk '!seen[$0]++' | head -60 > errors.txt || true
+            split -l 12 errors.txt part_
+            for f in part_*; do
+              [ -s "$f" ] && echo "::error title=${{matrix.platform}}::$(awk 'BEGIN{ORS="%0A"} {print}' "$f")"
+            done
+            exit 1
+          fi
+
+      - name: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod-${{matrix.platform}}
+          path: build/mods/*.dusk
+          if-no-files-found: error
+
+  combine:
+    name: combine
+    needs: build
+    runs-on: ubuntu-latest
+    # the release step creates a release with the workflow's own token
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: download bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mod-*
+          path: dist
+
+      # symgen puts the abi, imports and exports the mod site wants into mod.json
+      - name: mod metadata
+        run: |
+          curl -fsSL -o symgen             "https://github.com/encounter/symgen/releases/download/${SYMGEN_VERSION}/symgen-linux-x86_64"
+          chmod +x symgen
+          mkdir -p libs
+          for f in dist/*/*.dusk; do unzip -o -q "$f" 'lib/*' -d libs; done
+          ./symgen modmeta --check --update-json mod.json $(find libs -type f -name 'mod.*')
+          cat mod.json
+
+      - name: pack
+        run: |
+          args=()
+          for f in dist/*/*.dusk; do args+=(--bundle "$f"); done
+          python3 tools/package.py "${args[@]}" --out combined/heros_shade.dusk
+
+      - name: upload combined
+        uses: actions/upload-artifact@v4
+        with:
+          name: heros_shade
+          path: combined/heros_shade.dusk
+          if-no-files-found: error
+
+      - name: release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{github.token}}
+        run: |
+          # re-tagging a version reruns this, so only make the release if it is not there yet
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file .github/release-notes.md
+          fi
+          gh release upload "$GITHUB_REF_NAME" combined/heros_shade.dusk --clobber
